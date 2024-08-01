@@ -2,6 +2,7 @@ variable "mongo_server_version" {
   type        = string
   description = "The Server Version of a MongoDB account. Defaults to `3.6` Possible values are `4.2`, `4.0`, `3.6`, and `3.2`"
   default     = "3.6"
+  nullable    = false
 
   validation {
     condition     = can(index(["4.2", "4.0", "3.6", "3.2"], var.mongo_server_version))
