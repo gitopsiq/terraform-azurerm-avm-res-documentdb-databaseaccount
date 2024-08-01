@@ -1,7 +1,7 @@
 <!-- BEGIN_TF_DOCS -->
-# Public restricted access example
+# Mongo API example
 
-This example deploys the module with public network access enabled, but restricted to specific IP addresses and subnets using service endpoints.
+This example shows the different possible configuration of the Mongo API.
 
 ```hcl
 terraform {
@@ -29,7 +29,7 @@ provider "azurerm" {
 }
 
 locals {
-  prefix = "respub"
+  prefix = "mongo"
 }
 
 module "regions" {
@@ -54,42 +54,85 @@ resource "azurerm_resource_group" "example" {
   name     = "${module.naming.resource_group.name_unique}-${local.prefix}"
 }
 
-resource "azurerm_virtual_network" "example" {
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.example.location
-  name                = "${module.naming.virtual_network.name_unique}-${local.prefix}"
-  resource_group_name = azurerm_resource_group.example.name
-}
-
-resource "azurerm_subnet" "example" {
-  address_prefixes     = ["10.0.0.0/24"]
-  name                 = module.naming.subnet.name_unique
-  resource_group_name  = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-  service_endpoints    = ["Microsoft.AzureCosmosDB"]
-}
-
 module "cosmos" {
   source = "../../"
 
-  resource_group_name           = azurerm_resource_group.example.name
-  location                      = azurerm_resource_group.example.location
-  name                          = "${module.naming.cosmosdb_account.name_unique}-${local.prefix}"
-  public_network_access_enabled = true
+  resource_group_name        = azurerm_resource_group.example.name
+  location                   = azurerm_resource_group.example.location
+  name                       = "${module.naming.cosmosdb_account.name_unique}-${local.prefix}"
+  mongo_server_version       = "3.6"
+  analytical_storage_enabled = true
 
-  network_acl_bypass_for_azure_services = true
-  ip_range_filter = [
-    "168.125.123.255",
-    "170.0.0.0/24",
-    "0.0.0.0",                                                                      #Accept connections from within public Azure datacenters. https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-configure-firewall#allow-requests-from-the-azure-portal
-    "104.42.195.92", "40.76.54.131", "52.176.6.30", "52.169.50.45", "52.187.184.26" #Allow access from the Azure portal. https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-configure-firewall#allow-requests-from-global-azure-datacenters-or-other-sources-within-azure
-  ]
-  virtual_network_rules = [
-    {
-      subnet_id = azurerm_subnet.example.id
+  mongo_databases = {
+    empty_database = {
+      name       = "empty_database"
+      throughput = 400
     }
-  ]
+
+    database_autoscale_througput = {
+      name = "database_autoscale_througput"
+
+      autoscale_settings = {
+        max_throughput = 4000
+      }
+    }
+
+    database_collection = {
+      name       = "database_mongoDb_collections"
+      throughput = 400
+
+      collections = {
+        "collection" = {
+          name                = "MongoDBcollection"
+          default_ttl_seconds = "3600"
+          shard_key           = "_id"
+          throughput          = 400
+
+          index = {
+            keys   = ["_id"]
+            unique = true
+          }
+        }
+
+        "collection_autoscale" = {
+          name = "collection_autoscale_settings"
+
+          default_ttl_seconds = "3600"
+          shard_key           = "uniqueKey"
+
+          autoscale_settings = {
+            max_throughput = 4000
+          }
+
+          index = {
+            keys   = ["_id"]
+            unique = false
+          }
+        }
+      }
+    }
+
+    database_collections_index_keys_unique_false = {
+      name       = "database_collections_index_keys_unique_false"
+      throughput = 400
+
+      collections = {
+        "collection" = {
+          name                = "collections_index_keys_unique_false"
+          default_ttl_seconds = "3600"
+          shard_key           = "uniqueKey"
+          throughput          = 400
+
+          index = {
+            keys   = ["_id"]
+            unique = false
+          }
+        }
+      }
+    }
+  }
 }
+
 ```
 
 <!-- markdownlint-disable MD033 -->
@@ -116,8 +159,6 @@ The following providers are used by this module:
 The following resources are used by this module:
 
 - [azurerm_resource_group.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) (resource)
-- [azurerm_subnet.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet) (resource)
-- [azurerm_virtual_network.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_network) (resource)
 - [random_integer.region_index](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/integer) (resource)
 
 <!-- markdownlint-disable MD013 -->
